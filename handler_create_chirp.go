@@ -6,14 +6,29 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/google/uuid"
+	"github.com/rfield91/chirpy/internal/auth"
 	"github.com/rfield91/chirpy/internal/database"
 )
 
 func (cfg *apiConfig) handleCreateChirp(w http.ResponseWriter, req *http.Request) {
 	type parameters struct {
 		Body string `json:"body"`
-		UserId uuid.UUID `json:"user_id"`
+	}
+
+	token, tokenErr := auth.GetBearerToken(req.Header)
+
+	if tokenErr != nil {
+		log.Printf("Could not get auth token: %s", tokenErr)
+		respondWithError(w, http.StatusUnauthorized, "Invalid request body", tokenErr)
+		return
+	}
+
+	userId, jwtValidationErr := auth.ValidateJWT(token, cfg.authSecret)
+
+	if jwtValidationErr != nil {
+		log.Printf("Could not validate auth: %s", jwtValidationErr)
+		respondWithError(w, http.StatusUnauthorized, "Invalid request body", jwtValidationErr)
+		return
 	}
 
 	decoder := json.NewDecoder(req.Body)
@@ -24,6 +39,7 @@ func (cfg *apiConfig) handleCreateChirp(w http.ResponseWriter, req *http.Request
 	if err != nil {
 		log.Printf("Error decoding parameters: %s", err)
 		respondWithError(w, http.StatusBadRequest, "Invalid request body", err)
+		return
 	}
 
 	if len(params.Body) > 140 {
@@ -35,7 +51,7 @@ func (cfg *apiConfig) handleCreateChirp(w http.ResponseWriter, req *http.Request
 
 	chirp, err := cfg.dbQueries.CreateChirp(req.Context(), database.CreateChirpParams{
 		Body: body,
-		UserID: params.UserId,
+		UserID: userId,
 	})
 
 	if err != nil {

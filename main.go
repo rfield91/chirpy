@@ -16,6 +16,7 @@ type apiConfig struct {
 	fileserverHits atomic.Int32
 	dbQueries *database.Queries
 	platform string
+	authSecret string
 }
 
 func main() {
@@ -23,6 +24,7 @@ func main() {
 
 	dbURL := os.Getenv("DB_URL")
 	platform := os.Getenv("PLATFORM")
+	authSecret := os.Getenv("AUTH_SECRET")
 
 	db, err := sql.Open("postgres", dbURL)
 
@@ -38,6 +40,7 @@ func main() {
 		fileserverHits: atomic.Int32{},
 		dbQueries: dbQueries,
 		platform: platform,
+		authSecret: authSecret,
 	}
 
 	mux := http.NewServeMux()
@@ -52,7 +55,6 @@ func main() {
 	
 	mux.HandleFunc("GET /admin/metrics", apiCfg.handlerMetrics)
 	mux.HandleFunc("POST /admin/reset", apiCfg.handlerReset)
-
 
 	server := &http.Server{
 		Addr: ":" + port,

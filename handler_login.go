@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/rfield91/chirpy/internal/auth"
 )
@@ -14,6 +15,7 @@ func (cfg *apiConfig) handleLogin(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
 		Password string `json:"password"`
 		Email string `json:"email"`
+		ExpiresInSeconds int `json:"expires_in_seconds"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -54,12 +56,32 @@ func (cfg *apiConfig) handleLogin(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, http.StatusUnauthorized, "Invalid password", err)
 		return
 	}
+
+	var expiresIn time.Duration
+
+	if params.ExpiresInSeconds <= 0  || params.ExpiresInSeconds > 3600 {
+		expiresIn = time.Duration(1 * time.Hour)
+	} else {
+		expiresIn = time.Duration(params.ExpiresInSeconds)
+	}
+
+	token, err := auth.MakeJWT(user.ID, cfg.authSecret, expiresIn)
+
+	log.Printf("Token: %s", token)
+	log.Printf("Expire: %v", expiresIn)
+	
+	if err != nil {
+		log.Printf("Error making JWT: %s", err)
+		respondWithError(w, http.StatusInternalServerError, "Error making JWT", err)
+		return
+	}
 	
 	userJson := User{
 		ID: user.ID,
 		CreatedAt: user.CreatedAt,
 		UpdatedAt: user.UpdatedAt,
 		Email: user.Email,
+		Token: token,
 	}
 
 	respondWithJSON(w, http.StatusOK, userJson)
